@@ -3,247 +3,131 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Minimal Habit Tracker</title>
-  <!-- PWA hooks -->
-  <link rel="manifest" href="./manifest.json" />
-  <meta name="theme-color" content="#0b0c0f" />
-  <link rel="icon" href="./icons/icon-192.png" />
-  <style>
-    :root { --bg:#0b0c0f; --panel:#12141a; --muted:#8b90a0; --text:#e9ecf1; --accent:#6ee7b7; --danger:#f87171; --warn:#fbbf24; --ring: rgba(110,231,183,.35); }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,"Apple Color Emoji","Segoe UI Emoji";color:var(--text);background: radial-gradient(1200px 800px at 20% -10%, #141926 0%, #0b0c0f 55%)}
-    .container{max-width:980px;margin:0 auto;padding:24px 16px 60px;display:grid;gap:16px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .title{font-weight:700;letter-spacing:.2px;font-size:20px}
-    .subtle{color:var(--muted)}
-    .badge{padding:6px 10px;border-radius:999px;background: color-mix(in oklab, var(--panel), #1b2030 35%);color:var(--muted);border:1px solid #1f2433}
-    .card{background: color-mix(in oklab, var(--panel), #0c0f14 40%);border:1px solid #1a2030;border-radius:16px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,.35)}
-    .grid{display:grid;gap:12px}
-    .grid.cols-3{grid-template-columns:1.2fr .8fr .8fr}
-    label{display:block;margin:0 0 4px;color:var(--muted);font-size:12px}
-    input[type=text],select,input[type=number]{width:100%;padding:10px 12px;border-radius:10px;color:var(--text);background:#0f131b;border:1px solid #1d2332;outline: none}
-    input:focus,select:focus{box-shadow:0 0 0 4px var(--ring);border-color:#23304a}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    button{appearance:none;cursor:pointer;border:1px solid #1b2233;color:var(--text);background:linear-gradient(180deg,#1a2231 0%,#121722 100%);padding:10px 14px;border-radius:12px;font-weight:600}
-    button:hover{filter:brightness(1.12)} button:active{transform:translateY(1px)}
-    .btn-primary{background:linear-gradient(180deg,#22c55e 0%,#16a34a 100%);border-color:#15803d;color:#08130a}
-    .btn-danger{background:linear-gradient(180deg,#ef4444 0%,#b91c1c 100%);border-color:#7f1d1d}
-    .btn-ghost{background:transparent;border-color:#293147}
-    .btn-accent{background:linear-gradient(180deg,#34d399 0%,#10b981 100%);border-color:#0e9f6e;color:#05120e}
-    .actions{display:flex;flex-wrap:wrap;gap:8px}
-    table{width:100%;border-collapse:collapse;font-size:14px}
-    thead th{text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid #222a3d;padding:10px 8px}
-    tbody td{border-bottom:1px dashed #1c2437;padding:10px 8px;vertical-align:middle}
-    tbody tr:hover{background:#0e131c}
-    .nowrap{white-space:nowrap}
-    .muted{color:var(--muted)}
-    .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    .search{min-width:220px}
-    .toast{position:fixed;right:16px;bottom:16px;background:#0f1725;border:1px solid #1f2a44;color:var(--text);padding:12px 14px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.45);opacity:0;transform:translateY(8px);transition:.25s ease}
-    .toast.show{opacity:1;transform:translateY(0)}
-    dialog::backdrop{background:rgba(0,0,0,.6)}
-    dialog{border:1px solid #1d2540;background:#0e1421;color:var(--text);border-radius:16px;padding:16px 16px 10px;max-width:560px}
-    dialog header{gap:10px;margin-bottom:10px}
-    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;background:#0b111e;border:1px solid #1e2840;border-radius:6px;padding:2px 6px;font-size:12px;color:var(--accent)}
-    footer{margin-top:8px;color:var(--muted);text-align:center;font-size:12px}
-  </style>
+  <title>Habit Tracker</title>
+  <!-- Progressive Web App metadata -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#58CC02" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="title">Habit Tracker <span class="subtle">— minimal</span></div>
-      <div class="row">
-        <span id="today" class="badge"></span>
-        <span class="badge">Data: stored locally</span>
+  <header class="header">
+    <h1 class="app-title">Habit Tracker</h1>
+    <div class="stats">
+      <div class="stat">
+        <span class="label">XP:</span>
+        <span id="xpValue">0</span>
       </div>
-    </header>
+      <div class="stat">
+        <span class="label">Level:</span>
+        <span id="levelValue">1</span>
+        <div class="level-bar">
+          <div id="levelProgress"></div>
+        </div>
+      </div>
+      <div class="stat">
+        <span class="label">Freeze Tokens:</span>
+        <span id="freezesValue">0</span>
+        <button id="buyFreeze" class="btn secondary small" title="Spend 50 XP to earn one freeze token">Buy Freeze (50 XP)</button>
+      </div>
+    </div>
+    <div id="motivation" class="motivation"></div>
+  </header>
 
-    <section class="card">
-      <div class="grid cols-3">
-        <div>
-          <label for="name">Habit name</label>
-          <input id="name" type="text" placeholder="e.g., Morning workout" />
+  <main class="container">
+    <!-- Add habit form -->
+    <section class="card add-habit">
+      <h2>Add Habit</h2>
+      <div class="form-grid">
+        <div class="form-row">
+          <label for="habitName">Name</label>
+          <input id="habitName" type="text" placeholder="e.g. Morning workout" />
         </div>
-        <div>
-          <label for="short">Short name (unique)</label>
-          <input id="short" type="text" placeholder="e.g., workout" />
+        <div class="form-row">
+          <label for="habitShort">Short name (unique)</label>
+          <input id="habitShort" type="text" placeholder="e.g. workout" />
         </div>
-        <div>
-          <label for="period">Period</label>
-          <div class="row">
-            <select id="period">
-              <option value="daily">daily</option>
-              <option value="day after day">day after day</option>
-              <option value="times per week">times per week</option>
+        <div class="form-row">
+          <label for="habitPeriod">Period</label>
+          <div class="period-select">
+            <select id="habitPeriod">
+              <option value="daily">Daily</option>
+              <option value="day after day">Day after day</option>
+              <option value="times per week">Times per week</option>
             </select>
-            <input id="tpwCount" type="number" min="1" max="7" step="1" placeholder="#/wk" title="Times per week (optional)" style="max-width:90px; display:none;"/>
-            <button id="addBtn" class="btn-primary">Add habit</button>
+            <input id="habitCount" type="number" min="1" max="7" step="1" placeholder="#/wk" title="Times per week" class="count-input" />
           </div>
         </div>
       </div>
+      <button id="addHabitBtn" class="btn primary">Add habit</button>
     </section>
 
-    <section class="toolbar">
-      <div class="row actions">
-        <button id="exportCsv" class="btn-accent">Export CSV</button>
-        <button id="exportCsvCompat" title="Pandas-compat (index rows: name,period,done)">Export CSV (compat)</button>
-        <input id="fileInput" type="file" accept=".csv,.json" style="display:none" />
-        <button id="importBtn" class="btn-ghost">Import…</button>
-        <button id="helpBtn" class="btn-ghost">Help</button>
-        <button id="clearBtn" class="btn-danger">Clear all</button>
-      </div>
-      <div class="row">
-        <input id="search" class="search" type="text" placeholder="Filter by name or short…" />
+    <!-- Toolbar actions -->
+    <section class="toolbar card">
+      <div class="toolbar-row">
+        <input id="searchInput" type="text" placeholder="Filter by name or short…" />
+        <button id="exportCsv" class="btn secondary">Export CSV</button>
+        <button id="exportCompat" class="btn secondary" title="Export in pandas‑compatible format">Export CSV (compat)</button>
+        <input id="fileImport" type="file" accept=".csv,.json" style="display:none" />
+        <button id="importBtn" class="btn secondary">Import…</button>
+        <button id="helpBtn" class="btn secondary">Help</button>
+        <button id="clearBtn" class="btn danger">Clear all</button>
       </div>
     </section>
 
-    <section class="card">
-      <table id="table">
+    <!-- Habits table -->
+    <section class="card habits">
+      <table id="habitTable">
         <thead>
           <tr>
             <th>Short</th>
             <th>Name</th>
             <th>Period</th>
             <th>Last done</th>
-            <th class="nowrap">Actions</th>
+            <th>Streak</th>
+            <th>Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="habitBody"></tbody>
       </table>
     </section>
+  </main>
 
-    <footer>
-      v1.1 — Front‑end only. No servers, no tracking. Tip: use Export for backups.
-    </footer>
-  </div>
-
-  <dialog id="infoDialog">
+  <!-- Info dialog -->
+  <dialog id="infoDialog" class="modal">
     <header>
-      <div class="title">Habit info</div>
-      <button id="infoClose" class="btn-ghost">Close</button>
+      <h3>Habit info</h3>
+      <button id="infoClose" class="btn small secondary">Close</button>
     </header>
-    <div id="infoBody" style="white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0b111e; border:1px solid #1e2840; border-radius:12px; padding:10px;"></div>
-    <div class="row" style="margin-top:10px; justify-content: flex-end;">
-      <button id="copyJson" class="btn-accent">Copy JSON</button>
+    <pre id="infoContent" class="info-content"></pre>
+    <div class="modal-actions">
+      <button id="copyJson" class="btn primary small">Copy JSON</button>
     </div>
   </dialog>
 
-  <dialog id="helpDialog">
+  <!-- Help dialog -->
+  <dialog id="helpDialog" class="modal">
     <header>
-      <div class="title">Help</div>
-      <button id="helpClose" class="btn-ghost">Close</button>
+      <h3>Help</h3>
+      <button id="helpClose" class="btn small secondary">Close</button>
     </header>
-    <div class="grid">
-      <p class="muted">This is a browser‑only re‑implementation of your CLI script. All actions are mapped to buttons and stored in <span class="kbd">localStorage</span>.</p>
+    <div class="help-content">
+      <p>This version of the habit tracker introduces streaks, freeze tokens and XP like a game. Earn XP by completing habits and level up!</p>
       <ul>
-        <li><b>Add habit</b>: fill fields and click <em>Add habit</em>.</li>
-        <li><b>Mark done</b>: sets <em>Last done</em> to today (<span class="kbd">dd-mm-YYYY</span>).</li>
-        <li><b>Info</b>: shows the raw JSON for a habit (like <span class="kbd">info shortname</span>).</li>
-        <li><b>Delete</b>: removes a habit by short name.</li>
-        <li><b>Export CSV</b>: row‑based CSV (<span class="kbd">short,name,period,done</span>).</li>
-        <li><b>Export CSV (compat)</b>: matches your pandas shape with index rows <span class="kbd">name,period,done</span>.</li>
-        <li><b>Import</b>: accepts either CSV format or a JSON export.</li>
+        <li>Add a habit with a unique short name. Choose the period and, for <em>times per week</em>, set the weekly count.</li>
+        <li>Mark <strong>Done</strong> each day you complete the habit. Your streak grows when you complete on consecutive days.</li>
+        <li>If you miss a day, your streak resets – unless you have a <strong>freeze</strong> token! Use XP to buy freezes.</li>
+        <li>Track your XP, level and freeze tokens in the header. The progress bar shows XP towards your next level.</li>
+        <li>Use Export and Import to backup or restore your data. CSV (compat) matches a pandas DataFrame shape.</li>
       </ul>
-      <p class="muted">Tip: choose <em>times per week</em> and optionally set a #/wk. The stored <em>period</em> remains exactly one of: <span class="kbd">daily</span>, <span class="kbd">day after day</span>, <span class="kbd">times per week</span>.</p>
     </div>
   </dialog>
 
+  <!-- Toast notifications -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script>
-    const $ = sel => document.querySelector(sel);
-    const today = () => new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const fmt = d => `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}`;
-
-    function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
-    function download(filename, text){ const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
-
-    const LS_KEY='habits_v1'; let habits={};
-    function loadHabits(){ try{ const raw=localStorage.getItem(LS_KEY); habits = raw? JSON.parse(raw):{}; if(typeof habits!== 'object'||Array.isArray(habits)) habits={}; }catch{ habits={}; } }
-    function saveHabits(){ localStorage.setItem(LS_KEY, JSON.stringify(habits)); }
-
-    function render(filter=''){
-      const q=filter.trim().toLowerCase(); const tbody=$('#tbody'); tbody.innerHTML='';
-      const shorts=Object.keys(habits).sort((a,b)=>a.localeCompare(b));
-      for(const s of shorts){ const h=habits[s]; if(q && !(s.toLowerCase().includes(q) || (h.name||'').toLowerCase().includes(q))) continue;
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td class="nowrap"><span class="kbd">${escapeHtml(s)}</span></td>
-          <td>${escapeHtml(h.name||'')}</td>
-          <td class="nowrap">${escapeHtml(h.period||'')}</td>
-          <td class="nowrap ${h.done? '':'muted'}">${escapeHtml(h.done||'—')}</td>
-          <td class="nowrap">
-            <div class="row">
-              <button data-action="done" data-short="${escapeAttr(s)}" class="btn-accent">Done</button>
-              <button data-action="info" data-short="${escapeAttr(s)}" class="btn-ghost">Info</button>
-              <button data-action="del" data-short="${escapeAttr(s)}" class="btn-danger">Delete</button>
-            </div>
-          </td>`;
-        tbody.appendChild(tr);
-      }
-    }
-
-    function escapeHtml(str){return String(str).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));}
-    function escapeAttr(str){return String(str).replace(/"/g,'&quot;');}
-
-    function addHabit(){
-      const name=$('#name').value.trim(); const short=$('#short').value.trim(); let period=$('#period').value; const cnt=$('#tpwCount').valueAsNumber;
-      if(!short) return showToast('Short name is required');
-      if(!name) return showToast('Habit name is required');
-      if(habits[short]) return showToast('Short name already exists');
-      if(period==='times per week' && Number.isFinite(cnt)) { /* optional enrichment */ }
-      habits[short]={ name, period, done:'' };
-      saveHabits(); $('#name').value=''; $('#short').value=''; $('#tpwCount').value=''; render($('#search').value); showToast('Habit added');
-    }
-
-    function deleteHabit(short){ if(!habits[short]) return; if(!confirm(`Delete habit “${short}”?`)) return; delete habits[short]; saveHabits(); render($('#search').value); showToast('Habit deleted'); }
-    function markDone(short){ const h=habits[short]; if(!h) return; h.done=fmt(today()); saveHabits(); render($('#search').value); showToast(`Marked ${short} as done`); }
-    function habitInfo(short){ const h=habits[short]; if(!h) return; const obj={ [short]:{ name:h.name, period:h.period, done:h.done||'—' } }; $('#infoBody').textContent=JSON.stringify(obj,null,2); $('#infoDialog').showModal(); }
-
-    function exportCsvRowBased(){ const rows=[["short_name","name","period","done"]]; for(const s of Object.keys(habits)){ const h=habits[s]; rows.push([s,h.name||'',h.period||'',h.done||'']); } const csv=rows.map(r=>r.map(csvEscape).join(',')).join('\n'); download('habits.csv',csv); showToast('CSV exported'); }
-    function exportCsvCompat(){ const shorts=Object.keys(habits); const header=[''].concat(shorts); const nameRow=['name'].concat(shorts.map(s=>habits[s].name||'')); const periodRow=['period'].concat(shorts.map(s=>habits[s].period||'')); const doneRow=['done'].concat(shorts.map(s=>habits[s].done||'')); const rows=[header,nameRow,periodRow,doneRow]; const csv=rows.map(r=>r.map(csvEscape).join(',')).join('\n'); download('data_csv_compat.csv',csv); showToast('Compat CSV exported'); }
-    function csvEscape(v){ const s=String(v??''); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"': s; }
-
-    function importFromText(text){
-      try{ const obj=JSON.parse(text); if(obj && typeof obj==='object' && !Array.isArray(obj)){ habits=obj; saveHabits(); render($('#search').value); showToast('Imported JSON'); return; } }catch{}
-      const lines=text.trim().split(/\r?\n/); if(!lines.length) return showToast('Empty file');
-      const first=safeSplitCsv(lines[0]).map(unquote);
-      if((first[0]||'').toLowerCase()==='short_name'){
-        const map={}; for(let i=1;i<lines.length;i++){ if(!lines[i].trim()) continue; const cols=safeSplitCsv(lines[i]); const [short,name,period,done]=cols.map(unquote); if(!short) continue; map[short]={name:name||'',period:period||'',done:done||''}; }
-        habits=map; saveHabits(); render($('#search').value); showToast('Imported CSV'); return; }
-      if(first[0]==='' || first[0]===undefined){
-        const headerShorts=first.slice(1).map(unquote); const nameRow=safeSplitCsv(lines[1]||''); const periodRow=safeSplitCsv(lines[2]||''); const doneRow=safeSplitCsv(lines[3]||'');
-        if((nameRow[0]||'').toLowerCase()==='name' && (periodRow[0]||'').toLowerCase()==='period' && (doneRow[0]||'').toLowerCase()==='done'){
-          const map={}; for(let i=0;i<headerShorts.length;i++){ const s=unquote(headerShorts[i]||''); if(!s) continue; const name=unquote(nameRow[i+1]||''); const period=unquote(periodRow[i+1]||''); const done=unquote(doneRow[i+1]||''); map[s]={name,period,done}; }
-          habits=map; saveHabits(); render($('#search').value); showToast('Imported CSV (compat)'); return; }
-      }
-      showToast('Unrecognized file format');
-    }
-
-    function unquote(s){ s=String(s??''); if(s.startsWith('"') && s.endsWith('"')) return s.slice(1,-1).replace(/""/g,'"'); return s; }
-    function safeSplitCsv(line){ const out=[]; let cur=''; let inQ=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(ch==='"'){ if(inQ && line[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ; continue; } if(ch===',' && !inQ){ out.push(cur); cur=''; continue; } cur+=ch; } out.push(cur); return out; }
-
-    document.addEventListener('DOMContentLoaded',()=>{
-      $('#today').textContent=fmt(today());
-      loadHabits(); render();
-      $('#period').addEventListener('change',e=>{ const show=e.target.value==='times per week'; $('#tpwCount').style.display=show? '':'none'; });
-      $('#addBtn').addEventListener('click',addHabit);
-      $('#search').addEventListener('input',e=>render(e.target.value));
-      $('#tbody').addEventListener('click',e=>{ const btn=e.target.closest('button[data-action]'); if(!btn) return; const s=btn.getAttribute('data-short'); const action=btn.getAttribute('data-action'); if(action==='del') deleteHabit(s); if(action==='done') markDone(s); if(action==='info') habitInfo(s); });
-      $('#exportCsv').addEventListener('click',exportCsvRowBased);
-      $('#exportCsvCompat').addEventListener('click',exportCsvCompat);
-      $('#importBtn').addEventListener('click',()=>$('#fileInput').click());
-      $('#fileInput').addEventListener('change',async e=>{ const file=e.target.files[0]; if(!file) return; const text=await file.text(); importFromText(text); e.target.value=''; });
-      $('#clearBtn').addEventListener('click',()=>{ if(!Object.keys(habits).length) return showToast('Nothing to clear'); if(confirm('This removes ALL habits from this browser. Proceed?')){ habits={}; saveHabits(); render(); showToast('Cleared'); } });
-      $('#helpBtn').addEventListener('click',()=>$('#helpDialog').showModal());
-      $('#helpClose').addEventListener('click',()=>$('#helpDialog').close());
-      $('#infoClose').addEventListener('click',()=>$('#infoDialog').close());
-      $('#copyJson').addEventListener('click',()=>{ const txt=$('#infoBody').textContent; navigator.clipboard?.writeText(txt); showToast('JSON copied'); });
-
-      // Register service worker (PWA). Works on https:// or http://localhost
-      if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(console.error); }
-    });
-  </script>
+  <!-- JavaScript -->
+  <script src="app.js"></script>
 </body>
 </html>

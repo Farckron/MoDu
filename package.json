@@ -1,0 +1,13 @@
+{
+  "name": "habit-tracker-backend",
+  "version": "1.0.0",
+  "description": "Backend server for habit tracker with Duolingo-style streaks, XP, and freeze tokens.",
+  "main": "backend.js",
+  "scripts": {
+    "start": "node backend.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

@@ -1,8 +1,56 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'habit_tracker_state_v2';
+  // Base URL of the backend API. Change this to the host and port where
+  // you run backend.js (e.g. http://localhost:3000). If you deploy the
+  // backend elsewhere, update API_BASE accordingly. You can also define
+  // window.API_BASE before loading this script to override the default.
+  const API_BASE = window.API_BASE || 'http://localhost:3000';
+
+  // In‑memory state mirrors the backend. It holds the current set of
+  // habits, XP and freeze tokens returned by the server. Do not modify
+  // this directly; instead call the backend via api() and refreshState().
   let state = { habits: {}, xp: 0, freezes: 1 };
+
+  // Generic helper for making API requests. It prepends API_BASE to the
+  // endpoint, sets JSON headers, serializes the body (if provided) and
+  // throws on non‑2xx responses. The returned value is the parsed JSON.
+  async function api(path, method = 'GET', body = null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body != null) opts.body = JSON.stringify(body);
+    const res = await fetch(API_BASE + path, opts);
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      data = { error: 'Invalid JSON response' };
+    }
+    if (!res.ok) {
+      throw data;
+    }
+    return data;
+  }
+
+  // Fetch the latest habits and status from the backend and update the
+  // local state. After calling this, call updateStats() and renderHabits()
+  // to refresh the UI. Any errors are logged to the console and shown
+  // as a toast.
+  async function refreshState(filter = '') {
+    try {
+      const [habits, status] = await Promise.all([
+        api('/habits'),
+        api('/status')
+      ]);
+      state.habits = habits;
+      state.xp = status.xp;
+      state.freezes = status.freezes;
+      updateStats();
+      renderHabits(filter);
+    } catch (err) {
+      console.error('Failed to refresh state', err);
+      showToast(err?.error || 'Failed to load data');
+    }
+  }
 
   // ===== Utility functions =====
   const msPerDay = 86400000;
@@ -42,82 +90,8 @@
     toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
   }
 
-  // ===== State persistence =====
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const obj = JSON.parse(raw);
-        if (obj && typeof obj === 'object') state = obj;
-      }
-    } catch {}
-    // Initialize defaults
-    if (!state.habits) state.habits = {};
-    if (typeof state.xp !== 'number') state.xp = 0;
-    if (typeof state.freezes !== 'number') state.freezes = 1;
-    // Migration from old format
-    if (Object.keys(state.habits).length === 0) {
-      try {
-        const oldRaw = localStorage.getItem('habits_v1');
-        if (oldRaw) {
-          const old = JSON.parse(oldRaw);
-          if (old && typeof old === 'object') {
-            for (const s in old) {
-              const h = old[s];
-              let iso = '';
-              if (h.done) {
-                const parts = h.done.split('-');
-                if (parts.length === 3) {
-                  iso = `${parts[2]}-${pad(parts[1])}-${pad(parts[0])}`;
-                }
-              }
-              state.habits[s] = {
-                name: h.name || '',
-                period: h.period || '',
-                count: h.period === 'times per week' ? null : null,
-                lastDone: iso,
-                streak: 0
-              };
-            }
-            state.xp = 0;
-            state.freezes = 1;
-          }
-        }
-      } catch {}
-    }
-  }
-
-  function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-
-  // ===== Streak computation =====
-  function updateAllStreaks() {
-    const now = todayDate();
-    for (const s in state.habits) {
-      const h = state.habits[s];
-      if (!h.lastDone) continue;
-      if (h.streak == null) h.streak = 0;
-      const last = new Date(h.lastDone);
-      const diff = Math.floor((now - last) / msPerDay);
-      if (diff === 0) {
-        // done today, streak is valid
-        continue;
-      } else if (diff === 1) {
-        // done yesterday, streak continues
-        continue;
-      } else if (diff === 2) {
-        // missed exactly one day
-        if (state.freezes > 0) {
-          state.freezes--;
-        } else {
-          h.streak = 0;
-        }
-      } else if (diff > 2) {
-        h.streak = 0;
-      }
-    }
-  }
+  // Legacy localStorage functions have been removed. Persistence and streak
+  // computation now happen on the backend. See backend.js for details.
 
   // ===== Rendering =====
   function renderHabits(filter = '') {
@@ -200,7 +174,7 @@
   }
 
   // ===== Habit actions =====
-  function addHabit() {
+  async function addHabit() {
     const nameInput = document.getElementById('habitName');
     const shortInput = document.getElementById('habitShort');
     const periodSelect = document.getElementById('habitPeriod');
@@ -212,81 +186,69 @@
     if (!short) return showToast('Short name is required');
     if (!name) return showToast('Habit name is required');
     if (state.habits.hasOwnProperty(short)) return showToast('Short name already exists');
-    const habit = {
-      name: name,
-      period: period,
-      count: period === 'times per week' && Number.isFinite(count) ? count : null,
-      lastDone: '',
-      streak: 0
-    };
-    state.habits[short] = habit;
-    saveState();
-    nameInput.value = '';
-    shortInput.value = '';
-    countInput.value = '';
-    renderHabits(document.getElementById('searchInput').value);
-    updateStats();
-    showToast('Habit added');
+    try {
+      await api('/habits', 'POST', {
+        short: short,
+        name: name,
+        period: period,
+        count: Number.isFinite(count) ? count : null
+      });
+      // Clear inputs and refresh state from server
+      nameInput.value = '';
+      shortInput.value = '';
+      countInput.value = '';
+      await refreshState(document.getElementById('searchInput').value);
+      showToast('Habit added');
+    } catch (err) {
+      console.error('Add habit failed', err);
+      showToast(err?.error || 'Failed to add habit');
+    }
   }
 
-  function deleteHabit(short) {
+  async function deleteHabit(short) {
     if (!state.habits[short]) return;
     if (!confirm(`Delete habit “${short}”?`)) return;
-    delete state.habits[short];
-    saveState();
-    renderHabits(document.getElementById('searchInput').value);
-    updateStats();
-    showToast('Habit deleted');
-  }
-
-  function markDone(short) {
-    const habit = state.habits[short];
-    if (!habit) return;
-    const now = todayDate();
-    const iso = dateToIso(now);
-    if (habit.lastDone) {
-      const last = new Date(habit.lastDone);
-      const diff = Math.floor((now - last) / msPerDay);
-      if (diff === 0) {
-        return showToast('Already marked done today');
-      } else if (diff === 1) {
-        habit.streak += 1;
-      } else if (diff === 2) {
-        if (state.freezes > 0) {
-          state.freezes--;
-          habit.streak += 1;
-        } else {
-          habit.streak = 1;
-        }
-      } else {
-        habit.streak = 1;
-      }
-    } else {
-      habit.streak = 1;
+    try {
+      await api('/habits/' + encodeURIComponent(short), 'DELETE');
+      await refreshState(document.getElementById('searchInput').value);
+      showToast('Habit deleted');
+    } catch (err) {
+      console.error('Delete habit failed', err);
+      showToast(err?.error || 'Failed to delete');
     }
-    habit.lastDone = iso;
-    // Award XP: base + bonus per streak
-    const xpGain = 10 + Math.max(0, habit.streak - 1) * 5;
-    state.xp += xpGain;
-    saveState();
-    updateStats();
-    renderHabits(document.getElementById('searchInput').value);
-    showToast(`Marked “${short}” done (+${xpGain} XP)`);
   }
 
-  function habitInfo(short) {
+  async function markDone(short) {
     const habit = state.habits[short];
     if (!habit) return;
-    const info = {};
-    info[short] = {
-      name: habit.name,
-      period: habit.period,
-      count: habit.count,
-      lastDone: formatDisplayDate(habit.lastDone),
-      streak: habit.streak
-    };
-    document.getElementById('infoContent').textContent = JSON.stringify(info, null, 2);
-    document.getElementById('infoDialog').showModal();
+    try {
+      const result = await api('/habits/' + encodeURIComponent(short) + '/done', 'PUT');
+      await refreshState(document.getElementById('searchInput').value);
+      showToast(`Marked “${short}” done (+${result.xpGain} XP)`);
+    } catch (err) {
+      console.error('Mark done failed', err);
+      showToast(err?.error || 'Failed to mark done');
+    }
+  }
+
+  async function habitInfo(short) {
+    // Fetch the latest habit from the server to ensure info is current
+    try {
+      const habit = await api('/habits/' + encodeURIComponent(short));
+      const info = {};
+      info[short] = {
+        name: habit.name,
+        period: habit.period,
+        count: habit.count,
+        lastDone: formatDisplayDate(habit.lastDone),
+        streak: habit.streak
+      };
+      document.getElementById('infoContent').textContent = JSON.stringify(info, null, 2);
+      document.getElementById('infoDialog').showModal();
+    } catch (err) {
+      console.error('Fetch habit info failed', err);
+      showToast(err?.error || 'Failed to fetch info');
+    }
   }
 
   // ===== Export / Import =====
@@ -303,6 +265,8 @@
   }
 
   function exportCsv() {
+    // Compose CSV from the in‑memory state. Since state mirrors the backend
+    // we can use it directly.
     const rows = [['short', 'name', 'period', 'count', 'lastDone', 'streak']];
     for (const s in state.habits) {
       const h = state.habits[s];
@@ -334,25 +298,25 @@
     showToast('Compat CSV exported');
   }
 
-  function importFromText(text) {
+  async function importFromText(text) {
     text = text.trim();
     if (!text) return showToast('Empty file');
-    // Try JSON
+    // Build a habits object from JSON or CSV. The format matches the
+    // backend import API: an object keyed by short names.
+    let habits = {};
+    // Try JSON first
     try {
       const obj = JSON.parse(text);
       if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-        // If root keys seem like habits
         const keys = Object.keys(obj);
         if (keys.every(k => typeof obj[k] === 'object')) {
-          state.habits = {};
-          for (const s of keys) {
+          keys.forEach(s => {
             const h = obj[s];
-            state.habits[s] = {
+            habits[s] = {
               name: h.name || '',
               period: h.period || '',
               count: h.count != null ? h.count : null,
               lastDone: h.lastDone ? (function() {
-                // attempt to convert dd-mm-YYYY to ISO if necessary
                 if (/^\d{4}-\d{2}-\d{2}$/.test(h.lastDone)) return h.lastDone;
                 const parts = String(h.lastDone).split('-');
                 if (parts.length === 3) return `${parts[2]}-${pad(parts[1])}-${pad(parts[0])}`;
@@ -360,95 +324,83 @@
               })() : '',
               streak: h.streak != null ? h.streak : 0
             };
-          }
-          // reset xp and freezes
-          state.xp = 0;
-          state.freezes = 1;
-          saveState();
-          updateStats();
-          renderHabits(document.getElementById('searchInput').value);
-          showToast('Imported JSON');
-          return;
+          });
         }
       }
     } catch {}
-    // CSV
-    const lines = text.split(/\r?\n/);
-    if (!lines.length) return showToast('Empty file');
-    const first = safeSplitCsv(lines[0]);
-    // Row-based: header starts with short or short_name
-    const headerLower = first[0] ? first[0].toLowerCase() : '';
-    if (headerLower === 'short' || headerLower === 'short_name') {
-      const map = {};
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const cols = safeSplitCsv(lines[i]);
-        const [short, name, period, count, lastDone, streak] = cols;
-        if (!short) continue;
-        map[short] = {
-          name: name || '',
-          period: period || '',
-          count: count ? parseInt(count) : null,
-          lastDone: lastDone ? (function() {
-            if (/^\d{4}-\d{2}-\d{2}$/.test(lastDone)) return lastDone;
-            const parts = lastDone.split('-');
-            return parts.length === 3 ? `${parts[2]}-${pad(parts[1])}-${pad(parts[0])}` : '';
-          })() : '',
-          streak: streak ? parseInt(streak) || 0 : 0
-        };
-      }
-      state.habits = map;
-      state.xp = 0;
-      state.freezes = 1;
-      saveState();
-      updateStats();
-      renderHabits(document.getElementById('searchInput').value);
-      showToast('Imported CSV');
-      return;
-    }
-    // Compat: first cell empty
-    if (first[0] === '' || first[0] === undefined) {
-      const headerShorts = first.slice(1).map(s => s && s.trim());
-      const rows = lines.slice(1).map(l => safeSplitCsv(l));
-      const map = {};
-      headerShorts.forEach((short, idx) => {
-        if (!short) return;
-        map[short] = {
-          name: '',
-          period: '',
-          count: null,
-          lastDone: '',
-          streak: 0
-        };
-      });
-      rows.forEach(row => {
-        const key = (row[0] || '').toLowerCase();
+    if (Object.keys(habits).length === 0) {
+      // Attempt CSV
+      const lines = text.split(/\r?\n/);
+      if (!lines.length) return showToast('Empty file');
+      const first = safeSplitCsv(lines[0]);
+      const headerLower = first[0] ? first[0].toLowerCase() : '';
+      if (headerLower === 'short' || headerLower === 'short_name') {
+        const map = {};
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const cols = safeSplitCsv(lines[i]);
+          const [short, name, period, count, lastDone, streak] = cols;
+          if (!short) continue;
+          map[short] = {
+            name: name || '',
+            period: period || '',
+            count: count ? parseInt(count) : null,
+            lastDone: lastDone ? (function() {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(lastDone)) return lastDone;
+              const parts = lastDone.split('-');
+              return parts.length === 3 ? `${parts[2]}-${pad(parts[1])}-${pad(parts[0])}` : '';
+            })() : '',
+            streak: streak ? parseInt(streak) || 0 : 0
+          };
+        }
+        habits = map;
+      } else if (first[0] === '' || first[0] === undefined) {
+        const headerShorts = first.slice(1).map(s => s && s.trim());
+        const rows = lines.slice(1).map(l => safeSplitCsv(l));
+        const map = {};
         headerShorts.forEach((short, idx) => {
           if (!short) return;
-          const value = row[idx + 1] || '';
-          if (!map[short]) map[short] = { name:'', period:'', count:null, lastDone:'', streak:0 };
-          if (key === 'name') map[short].name = value;
-          else if (key === 'period') map[short].period = value;
-          else if (key === 'lastdone' || key === 'done') {
-            map[short].lastDone = value ? (function() {
-              if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-              const parts = value.split('-');
-              return parts.length === 3 ? `${parts[2]}-${pad(parts[1])}-${pad(parts[0])}` : '';
-            })() : '';
-          } else if (key === 'streak') map[short].streak = parseInt(value) || 0;
-          else if (key === 'count') map[short].count = value ? parseInt(value) || 0 : null;
+          map[short] = {
+            name: '',
+            period: '',
+            count: null,
+            lastDone: '',
+            streak: 0
+          };
         });
-      });
-      state.habits = map;
-      state.xp = 0;
-      state.freezes = 1;
-      saveState();
-      updateStats();
-      renderHabits(document.getElementById('searchInput').value);
-      showToast('Imported CSV (compat)');
-      return;
+        rows.forEach(row => {
+          const key = (row[0] || '').toLowerCase();
+          headerShorts.forEach((short, idx) => {
+            if (!short) return;
+            const value = row[idx + 1] || '';
+            if (!map[short]) map[short] = { name:'', period:'', count:null, lastDone:'', streak:0 };
+            if (key === 'name') map[short].name = value;
+            else if (key === 'period') map[short].period = value;
+            else if (key === 'lastdone' || key === 'done') {
+              map[short].lastDone = value ? (function() {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+                const parts = value.split('-');
+                return parts.length === 3 ? `${parts[2]}-${pad(parts[1])}-${pad(parts[0])}` : '';
+              })() : '';
+            } else if (key === 'streak') map[short].streak = parseInt(value) || 0;
+            else if (key === 'count') map[short].count = value ? parseInt(value) || 0 : null;
+          });
+        });
+        habits = map;
+      }
     }
-    showToast('Unrecognized file format');
+    if (Object.keys(habits).length === 0) {
+      return showToast('Unrecognized file format');
+    }
+    // Send to backend import endpoint
+    try {
+      await api('/import', 'POST', { habits });
+      await refreshState(document.getElementById('searchInput').value);
+      showToast('Import successful');
+    } catch (err) {
+      console.error('Import failed', err);
+      showToast(err?.error || 'Failed to import');
+    }
   }
 
   function safeSplitCsv(line) {
@@ -478,27 +430,21 @@
   }
 
   // ===== Buy freeze =====
-  function buyFreeze() {
-    if (state.xp < 50) {
-      showToast('Not enough XP');
-      return;
+  async function buyFreeze() {
+    try {
+      await api('/freeze', 'POST');
+      await refreshState(document.getElementById('searchInput').value);
+      showToast('Purchased a freeze token');
+    } catch (err) {
+      console.error('Buy freeze failed', err);
+      showToast(err?.error || 'Not enough XP');
     }
-    state.xp -= 50;
-    state.freezes += 1;
-    saveState();
-    updateStats();
-    showToast('Purchased a freeze token');
   }
 
   // ===== Event bindings =====
   document.addEventListener('DOMContentLoaded', () => {
-    // Load and compute streaks
-    loadState();
-    updateAllStreaks();
-    saveState();
-    // Render
-    updateStats();
-    renderHabits();
+    // Load habits and stats from backend when the page loads
+    refreshState();
     // Period select toggles count input
     const periodSelect = document.getElementById('habitPeriod');
     const countInput = document.getElementById('habitCount');
@@ -511,11 +457,11 @@
     });
     // Add habit button
     document.getElementById('addHabitBtn').addEventListener('click', addHabit);
-    // Search
+    // Search filter
     document.getElementById('searchInput').addEventListener('input', (e) => {
       renderHabits(e.target.value);
     });
-    // Table actions
+    // Table actions: done, delete, info
     document.getElementById('habitTable').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -525,10 +471,10 @@
       else if (action === 'del') deleteHabit(short);
       else if (action === 'info') habitInfo(short);
     });
-    // Export
+    // Export buttons
     document.getElementById('exportCsv').addEventListener('click', exportCsv);
     document.getElementById('exportCompat').addEventListener('click', exportCompat);
-    // Import
+    // Import file input
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileImport').click());
     document.getElementById('fileImport').addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -537,17 +483,18 @@
       importFromText(text);
       e.target.value = '';
     });
-    // Clear all
-    document.getElementById('clearBtn').addEventListener('click', () => {
+    // Clear all: reset all habits via backend import
+    document.getElementById('clearBtn').addEventListener('click', async () => {
       if (!Object.keys(state.habits).length) return showToast('Nothing to clear');
-      if (confirm('This removes ALL habits from this browser. Proceed?')) {
-        state.habits = {};
-        state.xp = 0;
-        state.freezes = 1;
-        saveState();
-        updateStats();
-        renderHabits();
-        showToast('Cleared');
+      if (confirm('This removes ALL habits on the server. Proceed?')) {
+        try {
+          await api('/import', 'POST', { habits: {} });
+          await refreshState();
+          showToast('Cleared');
+        } catch (err) {
+          console.error('Clear failed', err);
+          showToast(err?.error || 'Failed to clear');
+        }
       }
     });
     // Help dialog
@@ -560,7 +507,7 @@
       navigator.clipboard?.writeText(txt);
       showToast('JSON copied');
     });
-    // Buy freeze
+    // Buy freeze button
     document.getElementById('buyFreeze').addEventListener('click', buyFreeze);
   });
 
